@@ -1,11 +1,46 @@
-streamlit==1.28.1
-pandas==2.1.1
-numpy==1.24.3
-plotly==5.17.0
-seaborn==0.12.2
-matplotlib==3.7.2
-scipy==1.11.3
-scikit-learn==1.3.0
-python-dotenv==1.0.0
-Pillow==10.0.1
-openpyxl==3.1.2
+# Core Streamlit and Dashboard
+streamlit>=1.28.0
+streamlit-option-menu>=0.3.6
+
+# Data Processing and Analysis
+pandas>=2.0.0
+numpy>=1.24.0
+scipy>=1.11.0
+
+# Data Visualization
+plotly>=5.15.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Machine Learning and Clustering
+scikit-learn>=1.3.0
+
+# Statistical Analysis
+statsmodels>=0.14.0
+
+# Data Quality and Validation
+great-expectations>=0.17.0
+
+# Utility Libraries
+python-dateutil>=2.8.2
+pytz>=2023.3
+
+# Performance and Caching
+joblib>=1.3.0
+
+# Optional: Enhanced Features
+# Uncomment if using advanced features
+# prophet>=1.1.4  # For time series forecasting
+# openpyxl>=3.1.0  # For Excel file support
+# xlsxwriter>=3.1.0  # For Excel exports
+# kaleido>=0.2.1  # For static image exports of Plotly charts
+
+# Development and Testing (optional)
+# pytest>=7.4.0
+# pytest-cov>=4.1.0
+# black>=23.7.0
+# flake8>=6.0.0
+
+# Deployment (optional)
+# gunicorn>=21.2.0  # For production deployment
+# streamlit-authenticator>=0.2.3  # For authentication
