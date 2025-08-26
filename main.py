@@ -60,7 +60,7 @@ def load_data():
     """Load and cache the dataset"""
     try:
         # Try to load processed data first
-        df = pd.read_csv('data/processed/cleaned_flights_data.csv')
+        df = pd.read_csv('data/raw/airlines_flights_data.csv')
         return df
     except FileNotFoundError:
         st.error("Dataset not found. Please ensure the data files are in the correct location.")
@@ -358,4 +358,5 @@ def main():
         st.markdown("- ✅ Predictive Modeling")
 
 if __name__ == "__main__":
+
     main()
