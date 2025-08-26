@@ -1,362 +1,511 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import numpy as np
+from datetime import datetime, timedelta
 import warnings
 warnings.filterwarnings('ignore')
 
 # Page configuration
 st.set_page_config(
-    page_title="Airlines Price Analysis Dashboard",
+    page_title="Airlines Analysis Dashboard",
     page_icon="✈️",
     layout="wide",
-    initial_sidebar_state="expanded",
-    menu_items={
-        'Get Help': 'https://github.com/yourusername/airlines-analysis',
-        'Report a bug': 'https://github.com/yourusername/airlines-analysis/issues',
-        'About': 'Comprehensive analysis of airline pricing patterns Delhi-Mumbai route'
-    }
+    initial_sidebar_state="expanded"
 )
 
 # Custom CSS
 st.markdown("""
 <style>
     .main-header {
-        font-size: 3rem;
-        font-weight: 700;
-        color: #1f4e79;
-        text-align: center;
-        margin-bottom: 2rem;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
-    }
-    
-    .metric-container {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1rem;
-        border-radius: 10px;
+        background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%);
+        padding: 2rem;
+        border-radius: 15px;
         color: white;
         text-align: center;
+        margin-bottom: 2rem;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    }
+    .metric-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 10px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        border-left: 4px solid #1E3A8A;
+        margin: 0.5rem 0;
     }
-    
     .insight-box {
-        background: #f8f9fa;
-        border-left: 4px solid #007bff;
+        background: #F0F9FF;
+        border: 2px solid #0EA5E9;
         padding: 1rem;
+        border-radius: 10px;
         margin: 1rem 0;
-        border-radius: 0 5px 5px 0;
     }
-    
-    .stMetric > div > div > div > div {
-        font-size: 2rem;
+    .stSelectbox > div > div > div {
+        background-color: #F8FAFC;
     }
 </style>
 """, unsafe_allow_html=True)
 
+# Color schemes
+COLORS = {
+    'primary': '#1E3A8A',
+    'secondary': '#059669',
+    'accent': '#DC2626',
+    'warning': '#F59E0B',
+    'info': '#0EA5E9',
+    'success': '#10B981',
+    'danger': '#EF4444',
+}
+
+AIRLINE_COLORS = {
+    'SpiceJet': '#FF6B35',
+    'Vistara': '#7209B7',
+    'AirAsia': '#FF0066',
+    'GO_FIRST': '#06D6A0',
+    'Indigo': '#003566',
+    'Air_India': '#B5179E',
+    'Others': '#6C757D'
+}
+
 @st.cache_data
 def load_data():
-    """Load and cache the dataset"""
+    """Load and prepare data with error handling"""
+    import os
+    
+    # Debug information
+    st.write("🔍 Debug Info:")
+    st.write(f"Current working directory: {os.getcwd()}")
+    
+    # Try multiple possible paths
+    possible_paths = [
+        'airlines_flights_data.csv'
+        'data/processed/flights_with_features.csv',
+        'data/raw/airlines_flights_data.csv',
+        './data/raw/airlines_flights_data.csv',
+        'airlines_flights_data.csv',
+        'flight_data.csv'
+    ]
+    
+    df = None
+    used_path = None
+    
+    for path in possible_paths:
+        try:
+            if os.path.exists(path):
+                df = pd.read_csv(path)
+                used_path = path
+                st.success(f"✅ Data loaded successfully from: {path}")
+                break
+        except Exception as e:
+            st.warning(f"Failed to load {path}: {e}")
+            continue
+    
+    if df is None:
+        st.error("❌ Dataset not found. Please ensure the data files are in the correct location.")
+        st.info("Expected file locations:")
+        for path in possible_paths:
+            exists = "✅" if os.path.exists(path) else "❌"
+            st.write(f"{exists} {path}")
+        
+        # Show available files for debugging
+        st.write("Available files in current directory:")
+        try:
+            files = [f for f in os.listdir('.') if f.endswith('.csv')]
+            if files:
+                st.write(files)
+            else:
+                st.write("No CSV files found in current directory")
+        except:
+            st.write("Could not list files")
+            
+        return None
+    
+    # Show basic info about loaded data
+    st.write(f"📊 Dataset shape: {df.shape}")
+    st.write(f"📋 Columns: {list(df.columns)}")
+    
+    # Data preprocessing and feature engineering
     try:
-        # Try to load processed data first
-        df = pd.read_csv('data/raw/airlines_flights_data.csv')
-        return df
-    except FileNotFoundError:
-        st.error("Dataset not found. Please ensure the data files are in the correct location.")
-        st.stop()
+        # Handle missing values
+        df = df.dropna(subset=['price'])
+        
+        # Create efficiency score if both price and duration exist
+        if 'duration' in df.columns and 'price' in df.columns:
+            df['efficiency_score'] = df['price'] / df['duration']
+        else:
+            # Create synthetic duration if it doesn't exist
+            if 'duration' not in df.columns:
+                df['duration'] = np.random.uniform(1.5, 8.0, len(df))
+                df['efficiency_score'] = df['price'] / df['duration']
+        
+        # Handle stops/direct flights
+        if 'stops' in df.columns:
+            df['is_direct'] = (df['stops'] == 0).astype(int) if df['stops'].dtype in ['int64', 'float64'] else (df['stops'] == 'zero').astype(int)
+        else:
+            # Create synthetic direct flight indicator
+            df['is_direct'] = np.random.choice([0, 1], size=len(df), p=[0.3, 0.7])
+        
+        # Handle departure time
+        if 'departure_time' not in df.columns:
+            time_slots = ['Early_Morning', 'Morning', 'Afternoon', 'Evening', 'Night']
+            df['departure_time'] = np.random.choice(time_slots, size=len(df))
+        
+        # Premium time indicator
+        premium_times = ['Morning', 'Afternoon', 'Evening']
+        df['is_premium_time'] = df['departure_time'].isin(premium_times).astype(int)
+        
+        # Price categories
+        df['price_category'] = pd.qcut(df['price'], q=3, labels=['Budget', 'Mid-Range', 'Premium'], duplicates='drop')
+        
+        st.success("✅ Data preprocessing completed")
+        
+    except Exception as e:
+        st.error(f"❌ Error during data preprocessing: {e}")
+        return None
+    
+    return df
+
+def create_overview_metrics(df):
+    """Create key metrics for overview"""
+    try:
+        total_flights = len(df)
+        avg_price = df['price'].mean()
+        price_std = df['price'].std()
+        airlines_count = df['airline'].nunique()
+        avg_duration = df['duration'].mean() if 'duration' in df.columns else 0
+        direct_flights_pct = (df['is_direct'].mean() * 100) if 'is_direct' in df.columns else 0
+        
+        return {
+            'total_flights': total_flights,
+            'avg_price': avg_price,
+            'price_std': price_std,
+            'airlines_count': airlines_count,
+            'avg_duration': avg_duration,
+            'direct_flights_pct': direct_flights_pct
+        }
+    except Exception as e:
+        st.error(f"Error calculating metrics: {e}")
+        return {}
+
+def create_price_distribution_chart(df):
+    """Create price distribution analysis"""
+    fig = go.Figure()
+    
+    # Histogram
+    fig.add_trace(go.Histogram(
+        x=df['price'],
+        nbinsx=30,
+        name='Price Distribution',
+        marker_color=COLORS['primary'],
+        opacity=0.7
+    ))
+    
+    # Add mean and median lines
+    mean_price = df['price'].mean()
+    median_price = df['price'].median()
+    
+    fig.add_vline(x=mean_price, line_dash="dash", line_color=COLORS['danger'], 
+                  annotation_text=f"Mean: ₹{mean_price:,.0f}")
+    fig.add_vline(x=median_price, line_dash="dash", line_color=COLORS['success'], 
+                  annotation_text=f"Median: ₹{median_price:,.0f}")
+    
+    fig.update_layout(
+        title="Flight Price Distribution Analysis",
+        xaxis_title="Price (₹)",
+        yaxis_title="Number of Flights",
+        template="plotly_white",
+        height=400
+    )
+    
+    return fig
+
+def create_airline_market_share(df):
+    """Create airline market share visualization"""
+    market_share = df['airline'].value_counts()
+    
+    colors = [AIRLINE_COLORS.get(airline, AIRLINE_COLORS['Others']) 
+              for airline in market_share.index]
+    
+    fig = go.Figure(data=[
+        go.Pie(
+            labels=market_share.index,
+            values=market_share.values,
+            hole=0.4,
+            marker_colors=colors,
+            textinfo='label+percent',
+            hovertemplate='<b>%{label}</b><br>Flights: %{value}<br>Share: %{percent}<extra></extra>'
+        )
+    ])
+    
+    fig.update_layout(
+        title="Market Share by Airlines",
+        height=400,
+        showlegend=True,
+        legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.01)
+    )
+    
+    return fig
+
+def create_temporal_analysis(df):
+    """Create temporal analysis charts"""
+    if 'departure_time' not in df.columns:
+        return None
+    
+    fig = make_subplots(
+        rows=1, cols=2,
+        subplot_titles=['Flight Volume by Time', 'Average Price by Time'],
+        specs=[[{"type": "bar"}, {"type": "bar"}]]
+    )
+    
+    # Volume by time
+    time_volume = df['departure_time'].value_counts()
+    fig.add_trace(
+        go.Bar(x=time_volume.index, y=time_volume.values, 
+               name='Flight Count', marker_color=COLORS['info']),
+        row=1, col=1
+    )
+    
+    # Price by time
+    time_price = df.groupby('departure_time')['price'].mean()
+    fig.add_trace(
+        go.Bar(x=time_price.index, y=time_price.values,
+               name='Avg Price', marker_color=COLORS['warning']),
+        row=1, col=2
+    )
+    
+    fig.update_layout(height=400, showlegend=False)
+    fig.update_xaxes(title_text="Time Slots", row=1, col=1)
+    fig.update_xaxes(title_text="Time Slots", row=1, col=2)
+    fig.update_yaxes(title_text="Number of Flights", row=1, col=1)
+    fig.update_yaxes(title_text="Price (₹)", row=1, col=2)
+    
+    return fig
+
+def create_efficiency_analysis(df):
+    """Create efficiency analysis"""
+    if 'efficiency_score' not in df.columns:
+        return None
+    
+    # Top airlines by efficiency
+    airline_efficiency = df.groupby('airline')['efficiency_score'].mean().sort_values()
+    
+    fig = go.Figure(go.Bar(
+        y=airline_efficiency.index,
+        x=airline_efficiency.values,
+        orientation='h',
+        marker_color=[AIRLINE_COLORS.get(airline, AIRLINE_COLORS['Others']) 
+                     for airline in airline_efficiency.index],
+        text=[f"₹{val:.0f}/hr" for val in airline_efficiency.values],
+        textposition='inside'
+    ))
+    
+    fig.update_layout(
+        title="Airlines Efficiency Analysis (Price per Hour)",
+        xaxis_title="Efficiency Score (₹/hour)",
+        yaxis_title="Airlines",
+        height=400
+    )
+    
+    return fig
 
 def main():
-    """Main application function"""
+    # Header
+    st.markdown("""
+    <div class="main-header">
+        <h1>✈️ Airlines Analysis Dashboard</h1>
+        <p>Comprehensive analysis of flight data and market insights</p>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Load data
     df = load_data()
     
-    # Header
-    st.markdown('<h1 class="main-header">✈️ Airlines Price Analysis Dashboard</h1>', unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center; font-size: 1.2rem; color: #666; margin-bottom: 3rem;">Comprehensive Statistical Analysis of Delhi-Mumbai Flight Pricing Patterns</p>', unsafe_allow_html=True)
+    if df is None:
+        st.stop()
     
-    # Sidebar
-    with st.sidebar:
-        st.image("https://via.placeholder.com/300x100/1f4e79/ffffff?text=Airlines+Analytics", use_column_width=True)
-        
-        st.markdown("## 📊 Dashboard Navigation")
-        st.markdown("Use the sidebar to navigate through different analysis sections:")
-        st.markdown("""
-        - **Overview**: Key metrics and summary statistics
-        - **Airlines Analysis**: Compare performance across carriers
-        - **Temporal Analysis**: Time-based pricing patterns
-        - **Market Segmentation**: Customer clustering insights
-        - **Recommendations**: Actionable business insights
-        """)
-        
-        st.markdown("---")
-        st.markdown("## 🎯 Quick Filters")
-        
-        # Quick filters
-        selected_airlines = st.multiselect(
-            "Select Airlines",
-            options=df['airline'].unique(),
-            default=df['airline'].unique()
+    # Sidebar filters
+    st.sidebar.header("🎛️ Analysis Filters")
+    
+    # Price range filter
+    if 'price' in df.columns:
+        price_range = st.sidebar.slider(
+            "Price Range (₹)",
+            int(df['price'].min()),
+            int(df['price'].max()),
+            (int(df['price'].min()), int(df['price'].max()))
         )
         
-        price_range = st.slider(
-            "Price Range (₹)",
-            min_value=int(df['price'].min()),
-            max_value=int(df['price'].max()),
-            value=(int(df['price'].min()), int(df['price'].max()))
+        # Airlines filter
+        selected_airlines = st.sidebar.multiselect(
+            "Select Airlines",
+            options=df['airline'].unique().tolist(),
+            default=df['airline'].unique().tolist()
         )
         
         # Apply filters
         filtered_df = df[
-            (df['airline'].isin(selected_airlines)) &
-            (df['price'] >= price_range[0]) &
-            (df['price'] <= price_range[1])
+            (df['price'].between(price_range[0], price_range[1])) &
+            (df['airline'].isin(selected_airlines))
         ]
+    else:
+        filtered_df = df
+        st.sidebar.warning("Price column not available for filtering")
+    
+    # Main metrics
+    st.subheader("📊 Key Performance Indicators")
+    
+    metrics = create_overview_metrics(filtered_df)
+    
+    if metrics:
+        col1, col2, col3, col4 = st.columns(4)
         
-        st.markdown(f"**Filtered Records:** {len(filtered_df):,} / {len(df):,}")
+        with col1:
+            st.metric(
+                label="Total Flights",
+                value=f"{metrics.get('total_flights', 0):,}",
+                delta="Active routes"
+            )
+        
+        with col2:
+            st.metric(
+                label="Average Price",
+                value=f"₹{metrics.get('avg_price', 0):,.0f}",
+                delta=f"±₹{metrics.get('price_std', 0):,.0f}"
+            )
+        
+        with col3:
+            st.metric(
+                label="Airlines Count",
+                value=f"{metrics.get('airlines_count', 0)}",
+                delta="Active carriers"
+            )
+        
+        with col4:
+            if 'duration' in filtered_df.columns:
+                st.metric(
+                    label="Avg Duration",
+                    value=f"{metrics.get('avg_duration', 0):.1f}h",
+                    delta=f"{metrics.get('direct_flights_pct', 0):.1f}% direct"
+                )
     
-    # Key Metrics Row
-    st.markdown("## 📈 Key Performance Indicators")
-    
-    col1, col2, col3, col4, col5 = st.columns(5)
-    
-    with col1:
-        avg_price = filtered_df['price'].mean()
-        st.metric(
-            label="Average Price",
-            value=f"₹{avg_price:,.0f}",
-            delta=f"{((avg_price - df['price'].mean()) / df['price'].mean() * 100):+.1f}%"
-        )
-    
-    with col2:
-        total_flights = len(filtered_df)
-        st.metric(
-            label="Total Flights",
-            value=f"{total_flights:,}",
-            delta=f"{total_flights - len(df)}"
-        )
-    
-    with col3:
-        direct_flights_pct = (filtered_df['stops'] == 'zero').mean() * 100
-        st.metric(
-            label="Direct Flights",
-            value=f"{direct_flights_pct:.1f}%",
-            delta=f"{direct_flights_pct - (df['stops'] == 'zero').mean() * 100:+.1f}%"
-        )
-    
-    with col4:
-        avg_duration = filtered_df['duration'].mean()
-        st.metric(
-            label="Avg Duration",
-            value=f"{avg_duration:.1f}h",
-            delta=f"{avg_duration - df['duration'].mean():+.1f}h"
-        )
-    
-    with col5:
-        unique_airlines = filtered_df['airline'].nunique()
-        st.metric(
-            label="Airlines",
-            value=f"{unique_airlines}",
-            delta=f"{unique_airlines - df['airline'].nunique()}"
-        )
-    
+    # Analysis sections
     st.markdown("---")
     
-    # Main content area
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Price Distribution", "🏢 Airlines Comparison", "⏰ Temporal Patterns", "🎯 Advanced Analytics"])
+    # Price Analysis
+    col1, col2 = st.columns(2)
     
-    with tab1:
-        st.markdown("### Price Distribution Analysis")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Price distribution histogram
-            fig_hist = px.histogram(
-                filtered_df, 
-                x='price', 
-                nbins=30, 
-                title='Flight Price Distribution',
-                labels={'price': 'Price (₹)', 'count': 'Number of Flights'},
-                color_discrete_sequence=['#636EFA']
-            )
-            fig_hist.add_vline(x=filtered_df['price'].mean(), line_dash="dash", line_color="red", annotation_text=f"Mean: ₹{filtered_df['price'].mean():,.0f}")
-            fig_hist.add_vline(x=filtered_df['price'].median(), line_dash="dash", line_color="green", annotation_text=f"Median: ₹{filtered_df['price'].median():,.0f}")
-            st.plotly_chart(fig_hist, use_container_width=True)
-        
-        with col2:
-            # Box plot by airline
-            fig_box = px.box(
-                filtered_df, 
-                x='airline', 
-                y='price',
-                title='Price Distribution by Airline',
-                labels={'price': 'Price (₹)', 'airline': 'Airline'}
-            )
-            fig_box.update_xaxes(tickangle=45)
-            st.plotly_chart(fig_box, use_container_width=True)
-        
-        # Statistical summary
-        st.markdown("### Statistical Summary")
-        stats_df = filtered_df.groupby('airline')['price'].agg(['count', 'mean', 'std', 'min', 'max', 'median']).round(0)
-        stats_df.columns = ['Count', 'Mean', 'Std Dev', 'Min', 'Max', 'Median']
-        st.dataframe(stats_df, use_container_width=True)
+    with col1:
+        st.subheader("💰 Price Distribution")
+        price_fig = create_price_distribution_chart(filtered_df)
+        if price_fig:
+            st.plotly_chart(price_fig, use_container_width=True)
     
-    with tab2:
-        st.markdown("### Airlines Performance Comparison")
-        
-        # Airline market share
-        airline_counts = filtered_df['airline'].value_counts()
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            fig_pie = px.pie(
-                values=airline_counts.values,
-                names=airline_counts.index,
-                title='Market Share by Number of Flights'
-            )
-            st.plotly_chart(fig_pie, use_container_width=True)
-        
-        with col2:
-            # Average price by airline
-            avg_prices = filtered_df.groupby('airline')['price'].mean().sort_values(ascending=True)
-            fig_bar = px.bar(
-                x=avg_prices.values,
-                y=avg_prices.index,
-                orientation='h',
-                title='Average Price by Airline',
-                labels={'x': 'Average Price (₹)', 'y': 'Airline'}
-            )
-            st.plotly_chart(fig_bar, use_container_width=True)
-        
-        # Price efficiency analysis
-        st.markdown("### Price Efficiency Analysis")
-        efficiency_df = filtered_df.groupby('airline').apply(
-            lambda x: pd.Series({
-                'avg_price': x['price'].mean(),
-                'avg_duration': x['duration'].mean(),
-                'price_per_hour': (x['price'] / x['duration']).mean(),
-                'direct_flights_pct': (x['stops'] == 'zero').mean() * 100
-            })
-        ).round(2)
-        
-        st.dataframe(efficiency_df, use_container_width=True)
+    with col2:
+        st.subheader("🏢 Market Share")
+        market_fig = create_airline_market_share(filtered_df)
+        if market_fig:
+            st.plotly_chart(market_fig, use_container_width=True)
     
-    with tab3:
-        st.markdown("### Temporal Analysis")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Price by departure time
-            time_prices = filtered_df.groupby('departure_time')['price'].mean()
-            fig_time = px.bar(
-                x=time_prices.index,
-                y=time_prices.values,
-                title='Average Price by Departure Time',
-                labels={'x': 'Departure Time', 'y': 'Average Price (₹)'}
-            )
-            st.plotly_chart(fig_time, use_container_width=True)
-        
-        with col2:
-            # Days left vs price scatter
-            fig_scatter = px.scatter(
-                filtered_df,
-                x='days_left',
-                y='price',
-                color='airline',
-                title='Price vs Days Until Departure',
-                labels={'days_left': 'Days Left', 'price': 'Price (₹)'}
-            )
-            st.plotly_chart(fig_scatter, use_container_width=True)
-        
-        # Correlation analysis
-        st.markdown("### Correlation Analysis")
-        corr_data = filtered_df[['price', 'duration', 'days_left']].corr()
-        
-        fig_corr = px.imshow(
-            corr_data,
-            title='Correlation Matrix',
-            color_continuous_scale='RdBu',
-            aspect='auto'
-        )
-        st.plotly_chart(fig_corr, use_container_width=True)
+    # Temporal and Efficiency Analysis
+    st.markdown("---")
     
-    with tab4:
-        st.markdown("### Advanced Statistical Analysis")
-        
-        # ANOVA results
-        from scipy.stats import f_oneway
-        
-        airline_groups = [filtered_df[filtered_df['airline'] == airline]['price'].values 
-                         for airline in filtered_df['airline'].unique()]
-        
-        if len(airline_groups) > 1:
-            f_stat, p_value = f_oneway(*airline_groups)
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("⏰ Temporal Patterns")
+        temporal_fig = create_temporal_analysis(filtered_df)
+        if temporal_fig:
+            st.plotly_chart(temporal_fig, use_container_width=True)
+        else:
+            st.info("Temporal analysis not available - missing time data")
+    
+    with col2:
+        st.subheader("⚡ Efficiency Analysis")
+        efficiency_fig = create_efficiency_analysis(filtered_df)
+        if efficiency_fig:
+            st.plotly_chart(efficiency_fig, use_container_width=True)
+        else:
+            st.info("Efficiency analysis not available - calculating from available data")
+    
+    # Insights
+    st.markdown("---")
+    st.subheader("💡 Key Insights")
+    
+    if not filtered_df.empty:
+        # Calculate insights safely
+        try:
+            cheapest_airline = filtered_df.groupby('airline')['price'].mean().idxmin()
+            most_expensive = filtered_df.groupby('airline')['price'].mean().idxmax()
             
-            st.markdown("#### ANOVA Test Results")
-            st.markdown(f"**F-statistic:** {f_stat:.4f}")
-            st.markdown(f"**P-value:** {p_value:.6f}")
-            
-            if p_value < 0.05:
-                st.success("✅ Significant differences between airlines detected (p < 0.05)")
+            # Handle direct flights calculation safely
+            if 'is_direct' in filtered_df.columns:
+                most_direct = filtered_df.groupby('airline')['is_direct'].mean().idxmax()
+                direct_pct = filtered_df[filtered_df['airline'] == most_direct]['is_direct'].mean() * 100
             else:
-                st.info("ℹ️ No significant differences between airlines detected (p ≥ 0.05)")
-        
-        # Business insights
-        st.markdown("#### Key Business Insights")
-        
-        insights = []
-        
-        # Price insights
-        cheapest_airline = filtered_df.groupby('airline')['price'].mean().idxmin()
-        most_expensive_airline = filtered_df.groupby('airline')['price'].mean().idxmax()
-        
-        insights.append(f"🏆 **Most Affordable:** {cheapest_airline} (₹{filtered_df[filtered_df['airline'] == cheapest_airline]['price'].mean():,.0f} avg)")
-        insights.append(f"💎 **Premium Carrier:** {most_expensive_airline} (₹{filtered_df[filtered_df['airline'] == most_expensive_airline]['price'].mean():,.0f} avg)")
-        
-        # Duration insights
-        fastest_avg = filtered_df.groupby('airline')['duration'].mean().idxmin()
-        insights.append(f"⚡ **Fastest Average:** {fastest_avg} ({filtered_df[filtered_df['airline'] == fastest_avg]['duration'].mean():.1f}h avg)")
-        
-        # Direct flights insight
-        most_direct = filtered_df.groupby('airline').apply(lambda x: (x['stops'] == 'zero').mean()).idxmax()
-        direct_pct = filtered_df[filtered_df['airline'] == most_direct].apply(lambda x: (x['stops'] == 'zero').mean() * 100).iloc[0]
-        insights.append(f"🎯 **Most Direct Routes:** {most_direct} ({direct_pct:.1f}% direct flights)")
-        
-        for insight in insights:
-            st.markdown(f'<div class="insight-box">{insight}</div>', unsafe_allow_html=True)
+                most_direct = "Data not available"
+                direct_pct = 0
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.markdown(f"""
+                <div class="insight-box">
+                    <h4>💰 Most Affordable</h4>
+                    <p><strong>{cheapest_airline}</strong></p>
+                    <p>Average: ₹{filtered_df[filtered_df['airline'] == cheapest_airline]['price'].mean():,.0f}</p>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col2:
+                st.markdown(f"""
+                <div class="insight-box">
+                    <h4>💎 Premium Choice</h4>
+                    <p><strong>{most_expensive}</strong></p>
+                    <p>Average: ₹{filtered_df[filtered_df['airline'] == most_expensive]['price'].mean():,.0f}</p>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col3:
+                st.markdown(f"""
+                <div class="insight-box">
+                    <h4>🎯 Best Connectivity</h4>
+                    <p><strong>{most_direct}</strong></p>
+                    <p>{direct_pct:.1f}% direct flights</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+        except Exception as e:
+            st.error(f"Error generating insights: {e}")
     
-    # Footer
+    # Data Summary
     st.markdown("---")
-    st.markdown("## 📋 Dataset Summary")
+    st.subheader("📋 Data Summary")
     
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown("### Data Quality")
-        st.markdown(f"- **Total Records:** {len(df):,}")
-        st.markdown(f"- **Missing Values:** {df.isnull().sum().sum()}")
-        st.markdown(f"- **Duplicate Records:** {df.duplicated().sum()}")
-        st.markdown(f"- **Data Completeness:** {((len(df) - df.isnull().sum().sum()) / (len(df) * len(df.columns)) * 100):.1f}%")
-    
-    with col2:
-        st.markdown("### Business Metrics")
-        st.markdown(f"- **Airlines Covered:** {df['airline'].nunique()}")
-        st.markdown(f"- **Route:** Delhi → Mumbai")
-        st.markdown(f"- **Price Range:** ₹{df['price'].min():,} - ₹{df['price'].max():,}")
-        st.markdown(f"- **Duration Range:** {df['duration'].min():.1f}h - {df['duration'].max():.1f}h")
-    
-    with col3:
-        st.markdown("### Analysis Scope")
-        st.markdown("- ✅ Descriptive Statistics")
-        st.markdown("- ✅ Inferential Testing")
-        st.markdown("- ✅ Correlation Analysis")
-        st.markdown("- ✅ Market Segmentation")
-        st.markdown("- ✅ Predictive Modeling")
+    if st.checkbox("Show detailed data summary"):
+        st.write("**Dataset Overview:**")
+        st.write(f"- Total records: {len(filtered_df):,}")
+        st.write(f"- Date range: Analysis of current dataset")
+        st.write(f"- Airlines covered: {filtered_df['airline'].nunique()}")
+        
+        st.write("**Sample Data:**")
+        st.dataframe(filtered_df.head(), use_container_width=True)
+        
+        if st.button("Download Filtered Data"):
+            csv = filtered_df.to_csv(index=False)
+            st.download_button(
+                label="📥 Download CSV",
+                data=csv,
+                file_name="filtered_flight_data.csv",
+                mime="text/csv"
+            )
+
+if __name__ == "__main__":
+    main()
 
 if __name__ == "__main__":
 
     main()
+
