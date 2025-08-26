@@ -72,6 +72,14 @@ st.markdown("""
         text-align: center;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
+    
+    .profile-card {
+        background: #f8f9fa;
+        border: 1px solid #e0e0e0;
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 0.5rem 0;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -294,7 +302,8 @@ def main():
         st.markdown("## 📊 Dashboard Navigation")
         page = st.radio(
             "Select Analysis Section:",
-            ["Overview", "Airlines Analysis", "Temporal Analysis", "Market Segmentation", "Recommendations"]
+            ["Overview", "Airlines Analysis", "Temporal Analysis", "Market Segmentation", "Recommendations"],
+            key="nav_radio"
         )
         
         st.markdown("---")
@@ -304,25 +313,29 @@ def main():
         selected_airlines = st.multiselect(
             "Select Airlines",
             options=df['airline'].unique(),
-            default=df['airline'].unique()
+            default=df['airline'].unique(),
+            key="airline_filter"
         )
         
         price_range = st.slider(
             "Price Range (₹)",
             min_value=int(df['price'].min()),
             max_value=int(df['price'].max()),
-            value=(int(df['price'].min()), int(df['price'].max()))
+            value=(int(df['price'].min()), int(df['price'].max())),
+            key="price_slider"
         )
         
         time_slots = st.multiselect(
             "Departure Time",
             options=df['departure_time'].unique(),
-            default=df['departure_time'].unique()
+            default=df['departure_time'].unique(),
+            key="time_filter"
         )
         
         flight_type = st.selectbox(
             "Flight Type",
-            options=["All", "Direct Only", "With Stops"]
+            options=["All", "Direct Only", "With Stops"],
+            key="flight_type_filter"
         )
         
         # Apply filters
