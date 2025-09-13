@@ -244,6 +244,17 @@ For technical issues or feature requests:
 3. Ensure data files are in correct locations
 4. Review error messages in terminal
 
+- **LinkedIn**: [Nilo Rocha](https://linkedin.com/in/nilo-rocha-)
+- **Issues**: [GitHub Issues](https://github.com/niloRoch/cfem-analytics/issues)
+
+[![Website](https://img.shields.io/badge/Website-4c1d95?style=for-the-badge&logo=firefox&logoColor=a855f7)](https://www.nilorocha.tech)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/nilo-rocha-)
+[![GitHub](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/niloRoch)
+[![CV](https://img.shields.io/badge/Bold-312e81?style=for-the-badge&logo=readthedocs&logoColor=8b5cf6)](https://bold.pro/my/nilo-rocha)
+[![Email](https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:nilo.roch4@gmail.com)
+
+---
+
 ## 🎯 Roadmap
 
 Future enhancements:
@@ -251,4 +262,5 @@ Future enhancements:
 - Advanced ML models
 - Mobile app version
 - API endpoints
+
 - Enhanced export options
